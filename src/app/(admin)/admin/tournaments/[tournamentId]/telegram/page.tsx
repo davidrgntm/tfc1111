@@ -141,8 +141,12 @@ export default function TournamentTelegramPage() {
       return;
     }
 
-    const rows = (m.data ?? []) as MatchRow[];
-    setMatches(rows);
+    const rows: MatchRow[] = (m.data ?? []).map((match: any) => ({
+      ...match,
+      home: Array.isArray(match.home) ? match.home[0] : match.home,
+      away: Array.isArray(match.away) ? match.away[0] : match.away,
+    }));
+
 
     // ✅ Team logo map (teams table’dan logo_url olib kelamiz)
     const ids = Array.from(
