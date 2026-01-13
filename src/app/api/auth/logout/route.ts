@@ -1,8 +1,12 @@
+// src/app/api/auth/logout/route.ts
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
-export async function GET() {
-  const res = NextResponse.redirect(new URL("/login", "http://localhost"));
-  // URL host muammo bo‘lmasligi uchun keyin redirectni req’dan olamiz; hozircha cookie’ni o‘chirish muhim.
-  res.cookies.set("tfc_session", "", { path: "/", maxAge: 0 });
-  return res;
+export async function GET(req: Request) {
+  const c = await cookies();
+  c.delete("tfc_session");
+
+  const url = new URL("/login", req.url);
+  return NextResponse.redirect(url);
 }
+

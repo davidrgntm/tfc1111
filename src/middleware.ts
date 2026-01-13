@@ -1,28 +1,49 @@
+// src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
-export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+const COOKIE_NAME = "tfc_session";
 
-  // session yaratish endpointi ochiq
+async function verifySession(token: string) {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null;
+
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    // minimal check
+    if (payload?.typ !== "tfc_session") return null;
+    // @ts-ignore
+    if (!payload?.tg?.id) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export async function middleware(req: NextRequest) {
+  const url = req.nextUrl;
+  const pathname = url.pathname;
+
+  // session yaratish endpointini bloklamaymiz
   if (pathname.startsWith("/api/tma/session")) return NextResponse.next();
 
-  const isTmaPage = pathname.startsWith("/tma");
-  const isTmaApi = pathname.startsWith("/api/tma");
-
-  if (!isTmaPage && !isTmaApi) return NextResponse.next();
-
-  const token = req.cookies.get("tfc_session")?.value;
-
-  // /tma (bootstrap) sahifani ruxsat beramiz — u session yaratadi
-  if (pathname === "/tma" || pathname === "/tma/") return NextResponse.next();
-
+  const token = req.cookies.get(COOKIE_NAME)?.value;
   if (!token) {
-    if (isTmaApi) return NextResponse.json({ ok: false, error: "no_session" }, { status: 401 });
-    const url = req.nextUrl.clone();
-    url.pathname = "/tma";
-    url.searchParams.set("need", "1");
-    return NextResponse.redirect(url);
+    // TMA’ni faqat Telegram ichida ishlatamiz
+    if (pathname.startsWith("/tma")) {
+      url.pathname = "/tma";
+      url.searchParams.set("e", "no_session");
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.json({ ok: false, error: "no_session" }, { status: 401 });
+  }
+
+  const payload = await verifySession(token);
+  if (!payload) {
+    const res = NextResponse.redirect(new URL("/tma?e=bad_session", req.url));
+    res.cookies.delete(COOKIE_NAME);
+    return res;
   }
 
   return NextResponse.next();
