@@ -1,6 +1,5 @@
-// src/middleware.ts
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 const COOKIE_NAME = "tfc_session";
@@ -11,7 +10,7 @@ async function verifySession(token: string) {
 
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
-    // minimal check
+    // @ts-ignore
     if (payload?.typ !== "tfc_session") return null;
     // @ts-ignore
     if (!payload?.tg?.id) return null;
@@ -22,26 +21,17 @@ async function verifySession(token: string) {
 }
 
 export async function middleware(req: NextRequest) {
-  const url = req.nextUrl;
-  const pathname = url.pathname;
+  const p = req.nextUrl.pathname;
 
   // session yaratish endpointini bloklamaymiz
-  if (pathname.startsWith("/api/tma/session")) return NextResponse.next();
+  if (p === "/api/tma/session") return NextResponse.next();
 
   const token = req.cookies.get(COOKIE_NAME)?.value;
-  if (!token) {
-    // TMA’ni faqat Telegram ichida ishlatamiz
-    if (pathname.startsWith("/tma")) {
-      url.pathname = "/tma";
-      url.searchParams.set("e", "no_session");
-      return NextResponse.redirect(url);
-    }
-    return NextResponse.json({ ok: false, error: "no_session" }, { status: 401 });
-  }
+  if (!token) return NextResponse.json({ ok: false, error: "no_session" }, { status: 401 });
 
   const payload = await verifySession(token);
   if (!payload) {
-    const res = NextResponse.redirect(new URL("/tma?e=bad_session", req.url));
+    const res = NextResponse.json({ ok: false, error: "bad_session" }, { status: 401 });
     res.cookies.delete(COOKIE_NAME);
     return res;
   }
@@ -50,5 +40,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/tma/:path*", "/api/tma/:path*"],
+  matcher: ["/api/tma/:path*"], // ✅ faqat API himoyalanadi
 };
