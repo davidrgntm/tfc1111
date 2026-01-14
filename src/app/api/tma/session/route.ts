@@ -1,77 +1,148 @@
-// src/app/api/tma/session/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { SignJWT } from "jose";
 import { verifyTelegramInitData } from "@/lib/tg/verifyInitData";
-import { upsertTelegramUser } from "@/lib/tg/upsertTelegramUser";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
-const COOKIE_NAME = "tfc_session";
+export const runtime = "nodejs";
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json().catch(() => null);
-    const initData = body?.initData as string | undefined;
-
-    if (!initData) {
-      return NextResponse.json({ ok: false, error: "initData yo‘q" }, { status: 400 });
-    }
-
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const secret = process.env.SESSION_SECRET;
-
-    if (!botToken) return NextResponse.json({ ok: false, error: "TELEGRAM_BOT_TOKEN yo‘q" }, { status: 500 });
-    if (!secret) return NextResponse.json({ ok: false, error: "SESSION_SECRET yo‘q" }, { status: 500 });
-
-    // 1) initData verify
-    const verified = await verifyTelegramInitData(initData, botToken);
-    if (!verified.ok) {
-      return NextResponse.json({ ok: false, error: "initData verify xato", details: verified.error }, { status: 401 });
-    }
-
-    // 2) user parse
-    const sp = new URLSearchParams(initData);
-    const userJson = sp.get("user");
-    if (!userJson) return NextResponse.json({ ok: false, error: "initData user yo‘q" }, { status: 400 });
-
-    const u = JSON.parse(userJson);
-
-    const tg = {
-      id: String(u.id),
-      username: u.username ?? null,
-      first_name: u.first_name ?? null,
-      last_name: u.last_name ?? null,
-      photo_url: u.photo_url ?? null,
-    };
-
-    // 3) DB upsert (profiles)
-    const appUser = await upsertTelegramUser(tg);
-
-    // 4) JWT session
-    const key = new TextEncoder().encode(secret);
-    const token = await new SignJWT({
-      typ: "tfc_session",
-      role: "user",
-      appUserId: appUser.id,
-      tg,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime("30d")
-      .sign(key);
-
-    // 5) cookie
-    const c = await cookies();
-    c.set(COOKIE_NAME, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-    });
-
-    return NextResponse.json({ ok: true, appUserId: appUser.id });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? "server error" }, { status: 500 });
-  }
+function secretKey() {
+  const s = process.env.SESSION_SECRET;
+  if (!s) throw new Error("SESSION_SECRET missing");
+  return new TextEncoder().encode(s);
 }
 
+function adminIdsFromEnv(): string[] {
+  const raw = process.env.ADMIN_TG_IDS || "";
+  return raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => null);
+  const initData = body?.initData as string | undefined;
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
+  const v = verifyTelegramInitData(initData || "", botToken);
+
+  if (!("ok" in v) || v.ok !== true) {
+    return NextResponse.json(
+      { ok: false, error: (v as any).error ?? "verify_failed" },
+      { status: 401 }
+    );
+  }
+
+  const tgId = v.user.id;
+  const username = v.user.username ?? null;
+  const fullName = `${v.user.first_name ?? ""} ${v.user.last_name ?? ""}`.trim() || null;
+
+  // 1) avval mavjud user bor-yo‘qligini tekshiramiz
+  const existing = await supabaseAdmin
+    .from("app_users")
+    .select("id, role")
+    .eq("telegram_id", tgId)
+    .maybeSingle();
+
+  if (existing.error) {
+    return NextResponse.json(
+      { ok: false, error: "db_select_failed", details: existing.error.message },
+      { status: 500 }
+    );
+  }
+
+  const envAdmins = adminIdsFromEnv();
+  const isAdminEnv = envAdmins.includes(String(tgId));
+
+  let userId: string;
+  let role: string;
+
+  if (existing.data?.id) {
+    userId = existing.data.id;
+    role = existing.data.role ?? "user";
+
+    // ixtiyoriy: env’da admin bo‘lsa, promote qilamiz (demote qilmaymiz)
+    const roleToWrite = isAdminEnv && role !== "admin" ? "admin" : role;
+
+    const upd = await supabaseAdmin
+      .from("app_users")
+      .update({
+        telegram_username: username,
+        full_name: fullName,
+        role: roleToWrite,
+        last_login_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+      .select("role")
+      .single();
+
+    if (upd.error) {
+      return NextResponse.json(
+        { ok: false, error: "db_update_failed", details: upd.error.message },
+        { status: 500 }
+      );
+    }
+
+    role = upd.data?.role ?? roleToWrite ?? role;
+  } else {
+    // yangi user
+    const roleToWrite = isAdminEnv ? "admin" : "user";
+
+    const ins = await supabaseAdmin
+      .from("app_users")
+      .insert({
+        telegram_id: tgId,
+        telegram_username: username,
+        full_name: fullName,
+        role: roleToWrite,
+        last_login_at: new Date().toISOString(),
+      })
+      .select("id, role")
+      .single();
+
+    if (ins.error) {
+      return NextResponse.json(
+        { ok: false, error: "db_insert_failed", details: ins.error.message },
+        { status: 500 }
+      );
+    }
+
+    userId = ins.data.id;
+    role = ins.data.role ?? roleToWrite;
+  }
+
+  // 2) jwt session
+  const now = Math.floor(Date.now() / 1000);
+  const exp = now + 60 * 60 * 24 * 30; // 30 kun
+
+  const token = await new SignJWT({
+    sub: userId,
+    role,
+    tg: {
+      id: tgId,
+      username: username ?? undefined,
+      first_name: v.user.first_name ?? undefined,
+      last_name: v.user.last_name ?? undefined,
+    },
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(now)
+    .setExpirationTime(exp)
+    .sign(secretKey());
+
+  const res = NextResponse.json({ ok: true, role });
+
+  // agar iPhone Telegram’da “no session” qolaversa:
+  // sameSite: "none" qilib ko‘rasiz (secure bo‘lishi shart)
+  res.cookies.set({
+    name: "tfc_session",
+    value: token,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  return res;
+}

@@ -3,18 +3,23 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+function safeNextPath(v: string | null) {
+  if (!v) return null;
+  if (!v.startsWith("/")) return null;
+  if (v.startsWith("//")) return null;
+  return v;
+}
+
 export default function TmaBootstrapClient() {
   const router = useRouter();
   const sp = useSearchParams();
-  const [msg, setMsg] = useState<string>(
-    "Telegram’dan initData olinmoqda..."
-  );
+  const [msg, setMsg] = useState("Telegram’dan initData olinmoqda...");
 
   useEffect(() => {
     const tg = (window as any)?.Telegram?.WebApp;
 
     if (!tg) {
-      setMsg("Bu sahifani Telegram ichida (TMA) ochish kerak.");
+      setMsg("Bu sahifani Telegram ichida (Mini App) ochish kerak.");
       return;
     }
 
@@ -23,15 +28,18 @@ export default function TmaBootstrapClient() {
       tg.expand?.();
     } catch {}
 
-    const initData = tg.initData;
+    const initData: string = tg.initData;
 
     if (!initData) {
-      setMsg("initData topilmadi. Telegram WebApp noto‘g‘ri ochilgan.");
+      setMsg("initData topilmadi. Mini App noto‘g‘ri ochilgan.");
       return;
     }
 
+    const next = safeNextPath(sp.get("next"));
+
     (async () => {
       setMsg("Session yaratilmoqda...");
+
       const res = await fetch("/api/tma/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,10 +53,22 @@ export default function TmaBootstrapClient() {
         return;
       }
 
+      // json.role = "admin" | "user"
+      const role = json?.role ?? "user";
+
       setMsg("OK ✅");
-      router.replace("/tma/home");
+
+      if (next) {
+        router.replace(next);
+        return;
+      }
+
+      if (role === "admin") router.replace("/admin");
+      else router.replace("/tma/home");
     })();
-  }, [router, sp]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
   return (
     <main className="p-4 space-y-2">
