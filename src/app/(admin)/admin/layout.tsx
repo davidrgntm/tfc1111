@@ -1,7 +1,13 @@
 // src/app/(admin)/admin/layout.tsx
+import { getSession } from "@/lib/session";
+import { redirect } from "next/dist/client/components/navigation";
 import Link from "next/link";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const s = await getSession();
+  if (!s?.tg?.id) redirect("/login");
+  if (s.role !== "admin") redirect("/tma/home"); // yoki /login
+
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
