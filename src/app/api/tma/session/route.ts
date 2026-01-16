@@ -110,6 +110,14 @@ export async function POST(req: Request) {
     .from("app_users")
     .upsert(
       upsertPayload,
+      {
+        id: userIdToWrite,
+        telegram_id: tgId,
+        telegram_username: username,
+        full_name: fullName,
+        role: roleToWrite,
+        last_login_at: new Date().toISOString(),
+      },
       { onConflict: "telegram_id" }
     )
     .select("id, role")
@@ -125,6 +133,9 @@ export async function POST(req: Request) {
     userId = up.data.id;
     role = up.data.role ?? roleToWrite;
   }
+
+  userId = up.data.id;
+  role = up.data.role ?? roleToWrite;
 
   // 2) jwt session
   const now = Math.floor(Date.now() / 1000);
