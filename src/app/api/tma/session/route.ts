@@ -106,20 +106,8 @@ export async function POST(req: Request) {
     upsertPayload.id = userIdToWrite;
   }
 
-  const up = await supabaseAdmin
-    .from("app_users")
-    .upsert(
-      upsertPayload,
-      {
-        id: userIdToWrite,
-        telegram_id: tgId,
-        telegram_username: username,
-        full_name: fullName,
-        role: roleToWrite,
-        last_login_at: new Date().toISOString(),
-      },
-      { onConflict: "telegram_id" }
-    )
+  const up = await (supabaseAdmin.from("app_users") as any)
+    .upsert(upsertPayload, { onConflict: "telegram_id" })
     .select("id, role")
     .single();
 
