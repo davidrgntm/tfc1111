@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { SignJWT } from "jose";
 import { verifyTelegramInitData } from "@/lib/tg/verifyInitData";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -57,12 +58,9 @@ export async function POST(req: Request) {
   let userId: string;
   let role: string;
 
-  if (existing.data?.id) {
-    userId = existing.data.id;
-    role = existing.data.role ?? "user";
-
-    // ixtiyoriy: env’da admin bo‘lsa, promote qilamiz (demote qilmaymiz)
-    const roleToWrite = isAdminEnv && role !== "admin" ? "admin" : role;
+  const updateExistingUser = async (targetUserId: string, currentRole?: string | null) => {
+    const roleToWrite =
+      isAdminEnv && currentRole && currentRole !== "admin" ? "admin" : currentRole ?? "user";
 
     const upd = await supabaseAdmin
       .from("app_users")
@@ -72,18 +70,34 @@ export async function POST(req: Request) {
         role: roleToWrite,
         last_login_at: new Date().toISOString(),
       })
-      .eq("id", userId)
+      .eq("id", targetUserId)
       .select("role")
       .single();
 
     if (upd.error) {
-      return NextResponse.json(
-        { ok: false, error: "db_update_failed", details: upd.error.message },
-        { status: 500 }
-      );
+      return {
+        ok: false as const,
+        response: NextResponse.json(
+          { ok: false, error: "db_update_failed", details: upd.error.message },
+          { status: 500 }
+        ),
+      };
     }
 
-    role = upd.data?.role ?? roleToWrite ?? role;
+    return {
+      ok: true as const,
+      role: upd.data?.role ?? roleToWrite ?? currentRole ?? "user",
+    };
+  };
+
+  if (existing.data?.id) {
+    userId = existing.data.id;
+    role = existing.data.role ?? "user";
+
+    const updated = await updateExistingUser(userId, role);
+    if (!updated.ok) return updated.response;
+
+    role = updated.role;
   } else {
     // yangi user
     const roleToWrite = isAdminEnv ? "admin" : "user";
@@ -91,6 +105,7 @@ export async function POST(req: Request) {
     const ins = await supabaseAdmin
       .from("app_users")
       .insert({
+        id: crypto.randomUUID(),
         telegram_id: tgId,
         telegram_username: username,
         full_name: fullName,
@@ -101,14 +116,40 @@ export async function POST(req: Request) {
       .single();
 
     if (ins.error) {
-      return NextResponse.json(
-        { ok: false, error: "db_insert_failed", details: ins.error.message },
-        { status: 500 }
-      );
-    }
+      const isDuplicate =
+        ins.error.code === "23505" || ins.error.message?.toLowerCase().includes("duplicate");
 
-    userId = ins.data.id;
-    role = ins.data.role ?? roleToWrite;
+      if (isDuplicate) {
+        const refetch = await supabaseAdmin
+          .from("app_users")
+          .select("id, role")
+          .eq("telegram_id", tgId)
+          .maybeSingle();
+
+        if (refetch.error || !refetch.data?.id) {
+          return NextResponse.json(
+            { ok: false, error: "db_select_failed", details: refetch.error?.message },
+            { status: 500 }
+          );
+        }
+
+        userId = refetch.data.id;
+        role = refetch.data.role ?? "user";
+
+        const updated = await updateExistingUser(userId, role);
+        if (!updated.ok) return updated.response;
+
+        role = updated.role;
+      } else {
+        return NextResponse.json(
+          { ok: false, error: "db_insert_failed", details: ins.error.message },
+          { status: 500 }
+        );
+      }
+    } else {
+      userId = ins.data.id;
+      role = ins.data.role ?? roleToWrite;
+    }
   }
 
   // 2) jwt session
