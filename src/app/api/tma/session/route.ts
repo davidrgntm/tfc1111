@@ -122,6 +122,9 @@ export async function POST(req: Request) {
     role = up.data.role ?? roleToWrite;
   }
 
+  userId = up.data.id;
+  role = up.data.role ?? roleToWrite;
+
   // 2) jwt session
   const now = Math.floor(Date.now() / 1000);
   const exp = now + 60 * 60 * 24 * 30; // 30 kun
