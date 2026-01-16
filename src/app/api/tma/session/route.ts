@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { SignJWT } from "jose";
 import { verifyTelegramInitData } from "@/lib/tg/verifyInitData";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -58,99 +57,32 @@ export async function POST(req: Request) {
   let userId: string;
   let role: string;
 
-  const updateExistingUser = async (targetUserId: string, currentRole?: string | null) => {
-    const roleToWrite =
-      isAdminEnv && currentRole && currentRole !== "admin" ? "admin" : currentRole ?? "user";
+  const roleToWrite = isAdminEnv ? "admin" : existing.data?.role ?? "user";
 
-    const upd = await supabaseAdmin
-      .from("app_users")
-      .update({
-        telegram_username: username,
-        full_name: fullName,
-        role: roleToWrite,
-        last_login_at: new Date().toISOString(),
-      })
-      .eq("id", targetUserId)
-      .select("role")
-      .single();
-
-    if (upd.error) {
-      return {
-        ok: false as const,
-        response: NextResponse.json(
-          { ok: false, error: "db_update_failed", details: upd.error.message },
-          { status: 500 }
-        ),
-      };
-    }
-
-    return {
-      ok: true as const,
-      role: upd.data?.role ?? roleToWrite ?? currentRole ?? "user",
-    };
-  };
-
-  if (existing.data?.id) {
-    userId = existing.data.id;
-    role = existing.data.role ?? "user";
-
-    const updated = await updateExistingUser(userId, role);
-    if (!updated.ok) return updated.response;
-
-    role = updated.role;
-  } else {
-    // yangi user
-    const roleToWrite = isAdminEnv ? "admin" : "user";
-
-    const ins = await supabaseAdmin
-      .from("app_users")
-      .insert({
-        id: crypto.randomUUID(),
+  const up = await supabaseAdmin
+    .from("app_users")
+    .upsert(
+      {
         telegram_id: tgId,
         telegram_username: username,
         full_name: fullName,
         role: roleToWrite,
         last_login_at: new Date().toISOString(),
-      })
-      .select("id, role")
-      .single();
+      },
+      { onConflict: "telegram_id" }
+    )
+    .select("id, role")
+    .single();
 
-    if (ins.error) {
-      const isDuplicate =
-        ins.error.code === "23505" || ins.error.message?.toLowerCase().includes("duplicate");
-
-      if (isDuplicate) {
-        const refetch = await supabaseAdmin
-          .from("app_users")
-          .select("id, role")
-          .eq("telegram_id", tgId)
-          .maybeSingle();
-
-        if (refetch.error || !refetch.data?.id) {
-          return NextResponse.json(
-            { ok: false, error: "db_select_failed", details: refetch.error?.message },
-            { status: 500 }
-          );
-        }
-
-        userId = refetch.data.id;
-        role = refetch.data.role ?? "user";
-
-        const updated = await updateExistingUser(userId, role);
-        if (!updated.ok) return updated.response;
-
-        role = updated.role;
-      } else {
-        return NextResponse.json(
-          { ok: false, error: "db_insert_failed", details: ins.error.message },
-          { status: 500 }
-        );
-      }
-    } else {
-      userId = ins.data.id;
-      role = ins.data.role ?? roleToWrite;
-    }
+  if (up.error || !up.data?.id) {
+    return NextResponse.json(
+      { ok: false, error: "db_upsert_failed", details: up.error?.message },
+      { status: 500 }
+    );
   }
+
+  userId = up.data.id;
+  role = up.data.role ?? roleToWrite;
 
   // 2) jwt session
   const now = Math.floor(Date.now() / 1000);
