@@ -1,9 +1,37 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { SignJWT } from "jose";
 import { verifyTelegramInitData } from "@/lib/tg/verifyInitData";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
+
+function uuidToBytes(uuid: string) {
+  const hex = uuid.replace(/-/g, "");
+  return Buffer.from(hex, "hex");
+}
+function bytesToUuid(buf: Buffer) {
+  const hex = buf.toString("hex");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
+}
+function uuidv5(name: string, namespaceUuid: string) {
+  const ns = uuidToBytes(namespaceUuid);
+  const nameBytes = Buffer.from(name, "utf8");
+  const hash = crypto.createHash("sha1").update(Buffer.concat([ns, nameBytes])).digest();
+
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+
+  return bytesToUuid(hash.subarray(0, 16));
+}
+
+const TG_NAMESPACE = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
 
 function secretKey() {
   const s = process.env.SESSION_SECRET;
@@ -57,58 +85,45 @@ export async function POST(req: Request) {
   let userId: string;
   let role: string;
 
-  if (existing.data?.id) {
-    userId = existing.data.id;
-    role = existing.data.role ?? "user";
+  const roleToWrite = isAdminEnv ? "admin" : existing.data?.role ?? "user";
+  const userIdToWrite = uuidv5(`tg:${tgId}`, TG_NAMESPACE);
+  const upsertPayload: {
+    id?: string;
+    telegram_id: number;
+    telegram_username: string | null;
+    full_name: string | null;
+    role: string;
+    last_login_at: string;
+  } = {
+    telegram_id: tgId,
+    telegram_username: username,
+    full_name: fullName,
+    role: roleToWrite,
+    last_login_at: new Date().toISOString(),
+  };
 
-    // ixtiyoriy: env’da admin bo‘lsa, promote qilamiz (demote qilmaymiz)
-    const roleToWrite = isAdminEnv && role !== "admin" ? "admin" : role;
+  if (!existing.data?.id) {
+    upsertPayload.id = userIdToWrite;
+  }
 
-    const upd = await supabaseAdmin
-      .from("app_users")
-      .update({
-        telegram_username: username,
-        full_name: fullName,
-        role: roleToWrite,
-        last_login_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
-      .select("role")
-      .single();
+  const up = await supabaseAdmin
+    .from("app_users")
+    .upsert(
+      upsertPayload,
+      { onConflict: "telegram_id" }
+    )
+    .select("id, role")
+    .single();
 
-    if (upd.error) {
-      return NextResponse.json(
-        { ok: false, error: "db_update_failed", details: upd.error.message },
-        { status: 500 }
-      );
-    }
-
-    role = upd.data?.role ?? roleToWrite ?? role;
+  let warning: string | null = null;
+  if (up.error || !up.data?.id) {
+    console.error("tma_session_upsert_failed", up.error);
+    warning = up.error?.message ?? "db_upsert_failed";
+    userId = userIdToWrite;
+    role = roleToWrite;
   } else {
-    // yangi user
-    const roleToWrite = isAdminEnv ? "admin" : "user";
-
-    const ins = await supabaseAdmin
-      .from("app_users")
-      .insert({
-        telegram_id: tgId,
-        telegram_username: username,
-        full_name: fullName,
-        role: roleToWrite,
-        last_login_at: new Date().toISOString(),
-      })
-      .select("id, role")
-      .single();
-
-    if (ins.error) {
-      return NextResponse.json(
-        { ok: false, error: "db_insert_failed", details: ins.error.message },
-        { status: 500 }
-      );
-    }
-
-    userId = ins.data.id;
-    role = ins.data.role ?? roleToWrite;
+    userId = up.data.id;
+    role = up.data.role ?? roleToWrite;
   }
 
   // 2) jwt session
@@ -130,7 +145,7 @@ export async function POST(req: Request) {
     .setExpirationTime(exp)
     .sign(secretKey());
 
-  const res = NextResponse.json({ ok: true, role });
+  const res = NextResponse.json({ ok: true, role, warning });
 
   // agar iPhone Telegram’da “no session” qolaversa:
   // sameSite: "none" qilib ko‘rasiz (secure bo‘lishi shart)
