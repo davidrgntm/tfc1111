@@ -6,7 +6,7 @@ import Link from "next/link";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const s = await getSession();
   if (!s?.tg?.id) redirect("/login");
-  if (s.role !== "admin") redirect("/tma/home"); // yoki /login
+  if ((s as any)?.role !== "admin") redirect("/login");
 
   return (
     <div className="min-h-screen flex">
