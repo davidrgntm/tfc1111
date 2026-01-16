@@ -57,59 +57,32 @@ export async function POST(req: Request) {
   let userId: string;
   let role: string;
 
-  if (existing.data?.id) {
-    userId = existing.data.id;
-    role = existing.data.role ?? "user";
+  const roleToWrite = isAdminEnv ? "admin" : existing.data?.role ?? "user";
 
-    // ixtiyoriy: env’da admin bo‘lsa, promote qilamiz (demote qilmaymiz)
-    const roleToWrite = isAdminEnv && role !== "admin" ? "admin" : role;
-
-    const upd = await supabaseAdmin
-      .from("app_users")
-      .update({
-        telegram_username: username,
-        full_name: fullName,
-        role: roleToWrite,
-        last_login_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
-      .select("role")
-      .single();
-
-    if (upd.error) {
-      return NextResponse.json(
-        { ok: false, error: "db_update_failed", details: upd.error.message },
-        { status: 500 }
-      );
-    }
-
-    role = upd.data?.role ?? roleToWrite ?? role;
-  } else {
-    // yangi user
-    const roleToWrite = isAdminEnv ? "admin" : "user";
-
-    const ins = await supabaseAdmin
-      .from("app_users")
-      .insert({
+  const up = await supabaseAdmin
+    .from("app_users")
+    .upsert(
+      {
         telegram_id: tgId,
         telegram_username: username,
         full_name: fullName,
         role: roleToWrite,
         last_login_at: new Date().toISOString(),
-      })
-      .select("id, role")
-      .single();
+      },
+      { onConflict: "telegram_id" }
+    )
+    .select("id, role")
+    .single();
 
-    if (ins.error) {
-      return NextResponse.json(
-        { ok: false, error: "db_insert_failed", details: ins.error.message },
-        { status: 500 }
-      );
-    }
-
-    userId = ins.data.id;
-    role = ins.data.role ?? roleToWrite;
+  if (up.error || !up.data?.id) {
+    return NextResponse.json(
+      { ok: false, error: "db_upsert_failed", details: up.error?.message },
+      { status: 500 }
+    );
   }
+
+  userId = up.data.id;
+  role = up.data.role ?? roleToWrite;
 
   // 2) jwt session
   const now = Math.floor(Date.now() / 1000);
