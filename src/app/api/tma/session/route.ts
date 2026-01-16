@@ -104,11 +104,15 @@ export async function POST(req: Request) {
     .select("id, role")
     .single();
 
+  let warning: string | null = null;
   if (up.error || !up.data?.id) {
-    return NextResponse.json(
-      { ok: false, error: "db_upsert_failed", details: up.error?.message },
-      { status: 500 }
-    );
+    console.error("tma_session_upsert_failed", up.error);
+    warning = up.error?.message ?? "db_upsert_failed";
+    userId = userIdToWrite;
+    role = roleToWrite;
+  } else {
+    userId = up.data.id;
+    role = up.data.role ?? roleToWrite;
   }
 
   userId = up.data.id;
@@ -133,7 +137,7 @@ export async function POST(req: Request) {
     .setExpirationTime(exp)
     .sign(secretKey());
 
-  const res = NextResponse.json({ ok: true, role });
+  const res = NextResponse.json({ ok: true, role, warning });
 
   // agar iPhone Telegram’da “no session” qolaversa:
   // sameSite: "none" qilib ko‘rasiz (secure bo‘lishi shart)
