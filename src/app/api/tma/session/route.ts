@@ -87,10 +87,29 @@ export async function POST(req: Request) {
 
   const roleToWrite = isAdminEnv ? "admin" : existing.data?.role ?? "user";
   const userIdToWrite = uuidv5(`tg:${tgId}`, TG_NAMESPACE);
+  const upsertPayload: {
+    id?: string;
+    telegram_id: number;
+    telegram_username: string | null;
+    full_name: string | null;
+    role: string;
+    last_login_at: string;
+  } = {
+    telegram_id: tgId,
+    telegram_username: username,
+    full_name: fullName,
+    role: roleToWrite,
+    last_login_at: new Date().toISOString(),
+  };
+
+  if (!existing.data?.id) {
+    upsertPayload.id = userIdToWrite;
+  }
 
   const up = await supabaseAdmin
     .from("app_users")
     .upsert(
+      upsertPayload,
       {
         id: userIdToWrite,
         telegram_id: tgId,
