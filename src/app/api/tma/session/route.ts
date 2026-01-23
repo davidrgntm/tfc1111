@@ -51,7 +51,8 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const initData = body?.initData as string | undefined;
 
-  const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
+  // Tokenni tozalaymiz
+  const botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim().replace(/^[<"']+|[>"']+$/g, "");
   const v = verifyTelegramWebAppInitData(initData || "", botToken);
 
   if (!("ok" in v) || v.ok !== true) {
