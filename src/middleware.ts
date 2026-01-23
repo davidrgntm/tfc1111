@@ -1,44 +1,45 @@
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const COOKIE_NAME = "tfc_session";
-
-async function verifySession(token: string) {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) return null;
-
-  try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
-    // @ts-ignore
-    if (payload?.typ !== "tfc_session") return null;
-    // @ts-ignore
-    if (!payload?.tg?.id) return null;
-    return payload;
-  } catch {
-    return null;
-  }
-}
+// Admin yo'llarini himoyalaymiz
+const ADMIN_PATHS = ["/admin"];
 
 export async function middleware(req: NextRequest) {
-  const p = req.nextUrl.pathname;
+  const path = req.nextUrl.pathname;
+  const isAdminPath = ADMIN_PATHS.some((p) => path.startsWith(p));
 
-  // session yaratish endpointini bloklamaymiz
-  if (p === "/api/tma/session") return NextResponse.next();
-
-  const token = req.cookies.get(COOKIE_NAME)?.value;
-  if (!token) return NextResponse.json({ ok: false, error: "no_session" }, { status: 401 });
-
-  const payload = await verifySession(token);
-  if (!payload) {
-    const res = NextResponse.json({ ok: false, error: "bad_session" }, { status: 401 });
-    res.cookies.delete(COOKIE_NAME);
-    return res;
+  if (!isAdminPath) {
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  const token = req.cookies.get("tfc_session")?.value;
+
+  if (!token) {
+    // Token yo'q bo'lsa, Home ga otamiz
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  try {
+    const secret = new TextEncoder().encode(
+      process.env.SESSION_SECRET || "dev-secret-change-me"
+    );
+    const { payload } = await jwtVerify(token, secret);
+
+    // Role tekshirish
+    if (payload.role !== "admin") {
+      // User login qilgan, lekin admin emas
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    return NextResponse.next();
+  } catch (e) {
+    // Token yaroqsiz
+    return NextResponse.redirect(new URL("/", req.url));
+  }
 }
 
 export const config = {
-  matcher: ["/api/tma/:path*"], // ✅ faqat API himoyalanadi
+  // Faqat admin yo'llarida ishlasin (optimallashtirish)
+  matcher: ["/admin/:path*"],
 };

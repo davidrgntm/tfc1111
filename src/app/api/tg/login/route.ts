@@ -53,6 +53,36 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const params = url.searchParams;
 
+  // --- DEV LOGIN (Localhost only) ---
+  if (process.env.NODE_ENV !== "production" && params.get("dev") === "true") {
+    const now = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({
+      sub: "dev-admin-id",
+      role: "admin",
+      tg: {
+        id: "777000",
+        first_name: "Dev",
+        last_name: "Admin",
+        username: "dev_admin",
+      },
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt(now)
+      .setExpirationTime(now + 60 * 60 * 24) // 1 kun
+      .sign(secretKey());
+
+    const res = NextResponse.redirect(new URL("/admin", url.origin));
+    res.cookies.set({
+      name: "tfc_session",
+      value: token,
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
+    return res;
+  }
+  // ----------------------------------
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
   if (!botToken) return NextResponse.json({ ok: false, error: "bot token missing" }, { status: 500 });
 
@@ -94,9 +124,19 @@ export async function GET(req: Request) {
   const role = up.data.role as string;
 
   // create session cookie
-  const token = await new SignJWT({ typ: "tfc_session", appUserId, telegramId: telegram_id, role })
+  const now = Math.floor(Date.now() / 1000);
+  const token = await new SignJWT({
+    sub: appUserId,
+    role,
+    tg: {
+      id: String(telegram_id),
+      username: username ?? undefined,
+      first_name: first_name ?? undefined,
+      last_name: last_name ?? undefined,
+    },
+  })
     .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
+    .setIssuedAt(now)
     .setExpirationTime("30d")
     .sign(secretKey());
 
