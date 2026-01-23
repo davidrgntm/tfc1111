@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { SignJWT } from "jose";
-import { verifyTelegramInitData } from "@/lib/tg/verifyInitData";
+import { verifyTelegramWebAppInitData } from "@/lib/telegram-webapp";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   const initData = body?.initData as string | undefined;
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
-  const v = verifyTelegramInitData(initData || "", botToken);
+  const v = verifyTelegramWebAppInitData(initData || "", botToken);
 
   if (!("ok" in v) || v.ok !== true) {
     return NextResponse.json(
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
     sub: userId,
     role,
     tg: {
-      id: tgId,
+      id: String(tgId),
       username: username ?? undefined,
       first_name: v.user.first_name ?? undefined,
       last_name: v.user.last_name ?? undefined,

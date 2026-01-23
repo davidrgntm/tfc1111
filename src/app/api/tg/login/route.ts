@@ -1,115 +1,110 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
+import { SignJWT } from "jose";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const ADMIN_IDS = (process.env.ADMIN_TG_IDS || "").split(",").map((x) => x.trim());
-
-// Sizning IDingizni hardcode qilib qo'yamiz, har ehtimolga qarshi
-const SUPER_ADMIN_ID = "806860624";
-
-async function send(method: string, payload: any) {
-  if (!BOT_TOKEN) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  } catch (e) {
-    console.error("Telegram send error:", e);
-  }
+function getSessionSecret() {
+  const s = process.env.SESSION_SECRET || "dev-secret-change-me";
+  return new TextEncoder().encode(s);
 }
 
-export async function POST(req: Request) {
-  if (!BOT_TOKEN) {
-    return NextResponse.json({ error: "Bot token missing" }, { status: 500 });
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const params = url.searchParams;
+
+  // 1. DEV LOGIN (Faqat localhostda ishlash uchun)
+  if (process.env.NODE_ENV !== "production" && params.get("dev") === "true") {
+    const now = Math.floor(Date.now() / 1000);
+    const token = await new SignJWT({
+      sub: "dev-admin-id",
+      role: "admin",
+      tg: { id: "806860624", first_name: "Dev", last_name: "Admin", username: "dev_admin" },
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt(now)
+      .setExpirationTime("30d")
+      .sign(getSessionSecret());
+
+    const res = NextResponse.redirect(new URL("/admin", url.origin));
+    res.cookies.set("tfc_session", token, { httpOnly: true, path: "/" });
+    return res;
   }
 
-  const body = await req.json().catch(() => null);
-  if (!body || !body.message) return NextResponse.json({ ok: true });
+  // 2. TELEGRAM LOGIN WIDGET VERIFICATION
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return NextResponse.json({ error: "Bot token missing" }, { status: 500 });
 
-  const msg = body.message;
-  const chatId = msg.chat.id;
-  const text = msg.text;
+  const hash = params.get("hash");
+  if (!hash) return NextResponse.json({ error: "Hash missing" }, { status: 400 });
 
-  // 1. /start bosilganda
-  if (text === "/start") {
-    await send("sendMessage", {
-      chat_id: chatId,
-      text: "Xush kelibsiz! 🤖\n\nTizimdan to‘liq foydalanish uchun, iltimos, telefon raqamingizni yuboring (pastdagi tugmani bosing).",
-      reply_markup: {
-        keyboard: [
-          [
-            {
-              text: "📱 Telefon raqamni yuborish",
-              request_contact: true,
-            },
-          ],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      },
-    });
-    return NextResponse.json({ ok: true });
-  }
-
-  // 2. Contact yuborilganda
-  if (msg.contact) {
-    const contact = msg.contact;
-
-    // Birovning kontaktini yubormadimi?
-    if (contact.user_id !== msg.from.id) {
-      await send("sendMessage", {
-        chat_id: chatId,
-        text: "Iltimos, faqat o‘zingizning raqamingizni yuboring.",
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    const telegramId = contact.user_id;
-    const phone = contact.phone_number;
-    const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(" ");
-    const username = msg.from.username;
-
-    // Adminlikni tekshiramiz
-    const isSuperAdmin = String(telegramId) === SUPER_ADMIN_ID;
-    const isEnvAdmin = ADMIN_IDS.includes(String(telegramId));
-    
-    // Bazadan oldingi rolini olamiz (agar bor bo'lsa)
-    const existing = await supabaseAdmin
-      .from("app_users")
-      .select("role")
-      .eq("telegram_id", telegramId)
-      .maybeSingle();
-
-    // Agar user allaqachon admin bo'lsa yoki endi admin bo'lishi kerak bo'lsa
-    let role = existing.data?.role ?? "user";
-    if (isSuperAdmin || isEnvAdmin) {
-      role = "admin";
-    }
-
-    // Upsert (Yaratish yoki Yangilash)
-    // Eslatma: 'phone_number' ustuni bazada bo'lishi kerak. Agar yo'q bo'lsa, xato berishi mumkin.
-    const { error } = await supabaseAdmin.from("app_users").upsert(
-      {
-        telegram_id: telegramId,
-        telegram_username: username,
-        full_name: fullName,
-        phone_number: phone, 
-        role: role,
-      },
-      { onConflict: "telegram_id" }
-    );
-
-    if (error) {
-      console.error("Register error:", error);
-      await send("sendMessage", { chat_id: chatId, text: "Xatolik: " + error.message });
-    } else {
-      await send("sendMessage", { chat_id: chatId, text: `Rahmat! Siz muvaffaqiyatli ro‘yxatdan o‘tdingiz.\nRolingiz: ${role}`, reply_markup: { remove_keyboard: true } });
+  // Hash tekshirish
+  const dataCheckArr: string[] = [];
+  for (const [key, value] of params.entries()) {
+    if (key !== "hash") {
+      dataCheckArr.push(`${key}=${value}`);
     }
   }
+  dataCheckArr.sort();
+  const dataCheckString = dataCheckArr.join("\n");
 
-  return NextResponse.json({ ok: true });
+  const secretKey = crypto.createHash("sha256").update(botToken).digest();
+  const hmac = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+
+  if (hmac !== hash) {
+    return NextResponse.json({ error: "Hash mismatch" }, { status: 401 });
+  }
+
+  // 3. USERNI BAZAGA YOZISH
+  const telegram_id = Number(params.get("id"));
+  const username = params.get("username");
+  const first_name = params.get("first_name");
+  const last_name = params.get("last_name");
+  const photo_url = params.get("photo_url");
+  const full_name = [first_name, last_name].filter(Boolean).join(" ");
+
+  // Rolni aniqlash
+  const existing = await supabaseAdmin
+    .from("app_users")
+    .select("id, role")
+    .eq("telegram_id", telegram_id)
+    .maybeSingle();
+
+  const role = existing.data?.role ?? "user";
+
+  const { data: user, error } = await supabaseAdmin
+    .from("app_users")
+    .upsert({
+      telegram_id,
+      telegram_username: username,
+      full_name,
+      role,
+    }, { onConflict: "telegram_id" })
+    .select("id")
+    .single();
+
+  if (error || !user) {
+    console.error("Login upsert error:", error);
+    return NextResponse.json({ error: "Database error" }, { status: 500 });
+  }
+
+  // 4. SESSION YARATISH
+  const now = Math.floor(Date.now() / 1000);
+  const token = await new SignJWT({
+    sub: user.id,
+    role,
+    tg: { id: String(telegram_id), username, first_name, last_name, photo_url }
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(now)
+    .setExpirationTime("30d")
+    .sign(getSessionSecret());
+
+  // 5. REDIRECT
+  const target = role === "admin" ? "/admin" : "/tma/home";
+  const res = NextResponse.redirect(new URL(target, url.origin));
+  res.cookies.set("tfc_session", token, { httpOnly: true, path: "/", maxAge: 30 * 24 * 60 * 60 });
+  
+  return res;
 }
