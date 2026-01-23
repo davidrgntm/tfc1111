@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { SignJWT } from "jose";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin } from "../../../../lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -60,11 +60,11 @@ export async function GET(req: Request) {
 
   // 3. USERNI BAZAGA YOZISH
   const telegram_id = Number(params.get("id"));
-  const username = params.get("username");
-  const first_name = params.get("first_name");
-  const last_name = params.get("last_name");
-  const photo_url = params.get("photo_url");
-  const full_name = [first_name, last_name].filter(Boolean).join(" ");
+  const username = params.get("username") || null;
+  const first_name = params.get("first_name") || null;
+  const last_name = params.get("last_name") || null;
+  const photo_url = params.get("photo_url") || null;
+  const full_name = [first_name, last_name].filter(Boolean).join(" ") || null;
 
   // Rolni aniqlash
   const existing = await supabaseAdmin
@@ -96,7 +96,13 @@ export async function GET(req: Request) {
   const token = await new SignJWT({
     sub: user.id,
     role,
-    tg: { id: String(telegram_id), username, first_name, last_name, photo_url }
+    tg: { 
+      id: String(telegram_id), 
+      username, 
+      first_name, 
+      last_name, 
+      photo_url 
+    }
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt(now)

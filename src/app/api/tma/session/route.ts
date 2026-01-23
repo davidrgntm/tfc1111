@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { SignJWT } from "jose";
-import { verifyTelegramWebAppInitData } from "@/lib/telegram-webapp";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { verifyTelegramWebAppInitData } from "../../../../lib/telegram-webapp";
+import { supabaseAdmin } from "../../../../lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   const botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim().replace(/^[<"']+|[>"']+$/g, "");
   const v = verifyTelegramWebAppInitData(initData || "", botToken);
 
-  if (!("ok" in v) || v.ok !== true) {
+  if (!v.ok) {
     return NextResponse.json(
       { ok: false, error: (v as any).error ?? "verify_failed" },
       { status: 401 }
