@@ -11,6 +11,9 @@ function secretKey() {
   return new TextEncoder().encode(s);
 }
 
+// Telegram Login Widget yuboradigan kalitlar (boshqa parametrlar hashni buzmasligi uchun)
+const TG_KEYS = new Set(["id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"]);
+
 /**
  * Telegram login verification:
  * - take all fields except hash
@@ -26,6 +29,7 @@ function verifyTelegramLogin(params: URLSearchParams, botToken: string) {
   const pairs: string[] = [];
   params.forEach((value, key) => {
     if (key === "hash") return;
+    if (!TG_KEYS.has(key)) return; // Faqat Telegram parametrlarini olamiz
     pairs.push(`${key}=${value}`);
   });
   pairs.sort();
@@ -34,10 +38,14 @@ function verifyTelegramLogin(params: URLSearchParams, botToken: string) {
   const secret = crypto.createHash("sha256").update(botToken).digest();
   const computed = crypto.createHmac("sha256", secret).update(dataCheckString).digest("hex");
 
-  const a = Buffer.from(computed, "hex");
-  const b = Buffer.from(hash, "hex");
-  if (a.length !== b.length) return { ok: false as const, error: "hash mismatch" };
-  if (!crypto.timingSafeEqual(a, b)) return { ok: false as const, error: "hash mismatch" };
+  try {
+    const a = Buffer.from(computed, "hex");
+    const b = Buffer.from(hash, "hex");
+    if (a.length !== b.length) return { ok: false as const, error: "hash mismatch" };
+    if (!crypto.timingSafeEqual(a, b)) return { ok: false as const, error: "hash mismatch" };
+  } catch {
+    return { ok: false as const, error: "hash format error" };
+  }
 
   const authDate = Number(params.get("auth_date") || "0");
   if (!authDate) return { ok: false as const, error: "auth_date missing" };
@@ -93,12 +101,21 @@ export async function GET(req: Request) {
   const username = params.get("username");
   const first_name = params.get("first_name");
   const last_name = params.get("last_name");
+  const photo_url = params.get("photo_url");
 
   if (!telegram_id) return NextResponse.json({ ok: false, error: "id missing" }, { status: 400 });
 
   const full_name = `${first_name ?? ""} ${last_name ?? ""}`.trim() || null;
 
-  // app_users upsert
+  // 1) Avval user borligini tekshiramiz (rolni saqlab qolish uchun)
+  const existing = await supabaseAdmin
+    .from("app_users")
+    .select("id, role")
+    .eq("telegram_id", telegram_id)
+    .maybeSingle();
+
+  const roleToSave = existing.data?.role ?? "user";
+
   const up = await supabaseAdmin
     .from("app_users")
     .upsert(
@@ -106,7 +123,7 @@ export async function GET(req: Request) {
         telegram_id,
         telegram_username: username ?? null,
         full_name,
-        role: "user",
+        role: roleToSave,
       },
       { onConflict: "telegram_id" }
     )
@@ -133,6 +150,7 @@ export async function GET(req: Request) {
       username: username ?? undefined,
       first_name: first_name ?? undefined,
       last_name: last_name ?? undefined,
+      photo_url: photo_url ?? undefined,
     },
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -140,8 +158,10 @@ export async function GET(req: Request) {
     .setExpirationTime("30d")
     .sign(secretKey());
 
-  // redirect to /tma/home yoki /me
-  const res = NextResponse.redirect(new URL("/tma/home", url.origin));
+  // redirect to /admin if admin, else /tma/home
+  const target = role === "admin" ? "/admin" : "/tma/home";
+  const res = NextResponse.redirect(new URL(target, url.origin));
+  
   res.cookies.set({
     name: "tfc_session",
     value: token,
