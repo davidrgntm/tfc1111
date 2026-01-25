@@ -62,7 +62,8 @@ export default function MatchLineupsPage() {
       return;
     }
 
-    const row = m.data as MatchRow;
+    const row = m.data as unknown as MatchRow;
+  
     setMatch(row);
 
     const hp = await supabase
