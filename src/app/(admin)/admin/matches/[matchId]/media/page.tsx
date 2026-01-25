@@ -67,7 +67,7 @@ export default function AdminMatchMediaPage() {
       setLoading(false);
       return;
     }
-    setMatch(m.data as MatchRow);
+    setMatch(m.data as unknown as MatchRow);
 
     // Highlight link
     const media = await supabase
