@@ -107,7 +107,7 @@ export default function AdminDashboardPage() {
         .limit(30);
 
       if (m.error) throw new Error(`Matches: ${m.error.message}`);
-      setMatches((m.data ?? []) as MatchRow[]);
+      setMatches((m.data ?? []) as unknown as MatchRow[]);
 
       setLoading(false);
     } catch (e) {
