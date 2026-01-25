@@ -51,7 +51,7 @@ export default function AdminMatchesPage() {
     }
 
     // home/away ba’zan array bo‘lib kelishi mumkin — normalize:
-    const normalized = (res.data ?? []).map((r: MatchRow) => ({
+    const normalized = (res.data ?? []).map((r: any) => ({
       ...r,
       home: Array.isArray(r.home) ? (r.home[0] ?? null) : (r.home ?? null),
       away: Array.isArray(r.away) ? (r.away[0] ?? null) : (r.away ?? null),
