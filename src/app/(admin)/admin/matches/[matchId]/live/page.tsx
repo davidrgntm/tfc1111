@@ -22,9 +22,8 @@ type PlayerRow = { id: string; full_name: string };
 const EVENT_TYPES = ["GOAL", "YELLOW", "RED", "FOUL"] as const;
 
 export default function LiveConsolePage() {
-  const params = useParams();
-  const raw = (params as any)?.matchId;
-  const matchId: string | undefined = Array.isArray(raw) ? raw[0] : raw;
+  const params = useParams<{ matchId: string }>();
+  const matchId = params.matchId;
 
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [teams, setTeams] = useState<TeamRow[]>([]);
@@ -78,7 +77,7 @@ export default function LiveConsolePage() {
         return;
       }
 
-      const row = m.data as any;
+      const row = m.data as MatchRow;
       setMatch(row);
 
       const t: TeamRow[] = [
@@ -118,7 +117,7 @@ export default function LiveConsolePage() {
         return;
       }
 
-      setPlayers((data ?? []) as any);
+      setPlayers(data ?? []);
 
       // Non-goal eventlar uchun tezlik: default birinchi o‘yinchi
       // (GOAL’da ishlatmaymiz, goalDetails off bo‘lsa baribir null ketadi)
@@ -284,7 +283,7 @@ export default function LiveConsolePage() {
             <select
               className="border rounded w-full p-2 mt-1"
               value={type}
-              onChange={(e) => setType(e.target.value as any)}
+              onChange={(e) => setType(e.target.value as (typeof EVENT_TYPES)[number])}
             >
               {EVENT_TYPES.map((x) => (
                 <option key={x} value={x}>

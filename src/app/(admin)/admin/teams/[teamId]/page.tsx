@@ -18,9 +18,8 @@ function extFromName(name: string) {
 }
 
 export default function EditTeamPage() {
-  const params = useParams();
-  const raw = (params as any)?.teamId;
-  const teamId: string | undefined = Array.isArray(raw) ? raw[0] : raw;
+  const params = useParams<{ teamId: string }>();
+  const teamId = params.teamId;
 
   const [team, setTeam] = useState<TeamRow | null>(null);
   const [name, setName] = useState("");
@@ -40,7 +39,7 @@ export default function EditTeamPage() {
       return;
     }
 
-    const t = res.data as any as TeamRow;
+    const t = res.data as TeamRow;
     setTeam(t);
     setName(t.name ?? "");
   }

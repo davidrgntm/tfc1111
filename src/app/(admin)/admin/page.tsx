@@ -107,18 +107,19 @@ export default function AdminDashboardPage() {
         .limit(30);
 
       if (m.error) throw new Error(`Matches: ${m.error.message}`);
-      setMatches((m.data ?? []) as any as MatchRow[]);
+      setMatches((m.data ?? []) as MatchRow[]);
 
       setLoading(false);
-    } catch (e: any) {
-      setMsg(e?.message ?? "Unknown error");
+    } catch (e) {
+      let message = "Unknown error";
+      if (e instanceof Error) message = e.message;
+      setMsg(message);
       setLoading(false);
     }
   }
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const qNorm = q.trim().toLowerCase();

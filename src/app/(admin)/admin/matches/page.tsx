@@ -13,8 +13,8 @@ type MatchRow = {
   status: string;
   home_score: number;
   away_score: number;
-  home: any;
-  away: any;
+  home: { id: string; name: string } | null;
+  away: { id: string; name: string } | null;
 };
 
 function fmtDT(iso: string | null) {
@@ -51,18 +51,21 @@ export default function AdminMatchesPage() {
     }
 
     // home/away ba’zan array bo‘lib kelishi mumkin — normalize:
-    const normalized = (res.data ?? []).map((r: any) => ({
+    const normalized = (res.data ?? []).map((r: MatchRow) => ({
       ...r,
       home: Array.isArray(r.home) ? (r.home[0] ?? null) : (r.home ?? null),
       away: Array.isArray(r.away) ? (r.away[0] ?? null) : (r.away ?? null),
     }));
 
-    setRows(normalized as any);
+    setRows(normalized);
     setLoading(false);
   }
 
   useEffect(() => {
-    load();
+    async function loadData() {
+      await load();
+    }
+    loadData();
   }, []);
 
   const qn = q.trim().toLowerCase();

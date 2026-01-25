@@ -31,12 +31,15 @@ export default function AdminTeamsPage() {
       return;
     }
 
-    setRows((res.data ?? []) as any);
+    setRows((res.data ?? []) as TeamRow[]);
     setLoading(false);
   }
 
   useEffect(() => {
-    load();
+    async function loadData() {
+      await load();
+    }
+    loadData();
   }, []);
 
   return (

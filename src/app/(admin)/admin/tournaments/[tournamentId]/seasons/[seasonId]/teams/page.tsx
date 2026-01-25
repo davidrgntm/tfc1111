@@ -16,12 +16,9 @@ type SeasonTeamRow = {
 };
 
 export default function AdminSeasonTeamsPage() {
-  const params = useParams();
-  const rawT = (params as any)?.tournamentId;
-  const tournamentId: string | undefined = Array.isArray(rawT) ? rawT[0] : rawT;
-
-  const rawS = (params as any)?.seasonId;
-  const seasonId: string | undefined = Array.isArray(rawS) ? rawS[0] : rawS;
+  const params = useParams<{ tournamentId: string; seasonId: string }>();
+  const tournamentId = params.tournamentId;
+  const seasonId = params.seasonId;
 
   const [tournament, setTournament] = useState<TournamentRow | null>(null);
   const [season, setSeason] = useState<SeasonRow | null>(null);
@@ -51,7 +48,7 @@ export default function AdminSeasonTeamsPage() {
       setLoading(false);
       return;
     }
-    setTournament(t.data as any);
+    setTournament(t.data as TournamentRow);
 
     const s = await supabase
       .from("seasons")
@@ -64,7 +61,7 @@ export default function AdminSeasonTeamsPage() {
       setLoading(false);
       return;
     }
-    setSeason(s.data as any);
+    setSeason(s.data as SeasonRow);
 
     // all teams
     const teamsRes = await supabase.from("teams").select("id,name,logo_url").order("name", { ascending: true });
@@ -73,7 +70,7 @@ export default function AdminSeasonTeamsPage() {
       setLoading(false);
       return;
     }
-    setAllTeams((teamsRes.data ?? []) as any);
+    setAllTeams((teamsRes.data ?? []) as TeamRow[]);
 
     // season teams (join)
     const st = await supabase
@@ -92,7 +89,7 @@ export default function AdminSeasonTeamsPage() {
       return;
     }
 
-    setSeasonTeams((st.data ?? []) as any);
+    setSeasonTeams((st.data ?? []) as SeasonTeamRow[]);
     setLoading(false);
   }
 

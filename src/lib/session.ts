@@ -14,6 +14,7 @@ export type TgSessionUser = {
 export type Session = {
   tg: TgSessionUser;
   iat: number; // created time (ms)
+  role: string;
 };
 
 type JwtPayload = {
@@ -35,7 +36,7 @@ export async function decodeSession(token: string): Promise<Session | null> {
   try {
     const { payload } = await jwtVerify(token, getSecretKey());
     const p = payload as unknown as JwtPayload;
-    return { tg: p.tg, iat: p.iat * 1000 };
+    return { tg: p.tg, iat: p.iat * 1000, role: p.role };
   } catch {
     return null;
   }

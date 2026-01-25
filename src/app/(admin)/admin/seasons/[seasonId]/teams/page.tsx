@@ -22,9 +22,8 @@ function initials(name: string) {
 }
 
 export default function SeasonTeamsPage() {
-  const params = useParams();
-  const raw = (params as any)?.seasonId;
-  const seasonId: string | undefined = Array.isArray(raw) ? raw[0] : raw;
+  const params = useParams<{ seasonId: string }>();
+  const seasonId = params.seasonId;
 
   const [season, setSeason] = useState<SeasonRow | null>(null);
 
@@ -47,11 +46,7 @@ export default function SeasonTeamsPage() {
 
   const seasonTeamIds = useMemo(() => new Set(seasonTeams.map((x) => x.team_id)), [seasonTeams]);
 
-  const filteredTeams = useMemo(() => {
-    const qq = q.trim().toLowerCase();
-    if (!qq) return teams;
-    return teams.filter((t) => t.name.toLowerCase().includes(qq));
-  }, [teams, q]);
+
 
   async function loadAll() {
     if (!seasonId) return;
@@ -65,7 +60,7 @@ export default function SeasonTeamsPage() {
       setLoading(false);
       return;
     }
-    setSeason(s.data as any);
+    setSeason(s.data as SeasonRow);
 
     // teams
     const t = await supabase.from("teams").select("id,name,logo_url").order("name", { ascending: true });
@@ -74,7 +69,7 @@ export default function SeasonTeamsPage() {
       setLoading(false);
       return;
     }
-    setTeams((t.data ?? []) as any);
+    setTeams((t.data ?? []) as TeamRow[]);
 
     // season_teams + join team
     const st = await supabase
@@ -95,7 +90,7 @@ export default function SeasonTeamsPage() {
       return;
     }
 
-    setSeasonTeams((st.data ?? []) as any);
+    setSeasonTeams((st.data ?? []) as SeasonTeamRow[]);
     setLoading(false);
   }
 

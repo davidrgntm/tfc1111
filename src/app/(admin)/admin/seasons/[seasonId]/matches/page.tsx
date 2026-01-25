@@ -106,7 +106,7 @@ function buildRoundRobin(teamIds: string[], doubleRoundRobin: boolean) {
     // rotate (1st stays)
     const fixed = arr[0];
     const rest = arr.slice(1);
-    rest.unshift(rest.pop() as any);
+    rest.unshift(rest.pop() as string | null);
     arr = [fixed, ...rest];
   }
 
@@ -124,9 +124,8 @@ function buildRoundRobin(teamIds: string[], doubleRoundRobin: boolean) {
 }
 
 export default function SeasonMatchesAdminPage() {
-  const params = useParams();
-  const raw = (params as any)?.seasonId;
-  const seasonId: string | undefined = Array.isArray(raw) ? raw[0] : raw;
+  const params = useParams<{ seasonId: string }>();
+  const seasonId = params.seasonId;
 
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
@@ -215,7 +214,7 @@ export default function SeasonMatchesAdminPage() {
       return;
     }
 
-    const stRows = (st.data ?? []) as any as SeasonTeamRow[];
+    const stRows = (st.data ?? []) as SeasonTeamRow[];
     const teams = stRows.map((x) => x.team).filter(Boolean) as TeamRow[];
     teams.sort((a, b) => a.name.localeCompare(b.name));
     setSeasonTeams(teams);
@@ -241,7 +240,7 @@ export default function SeasonMatchesAdminPage() {
       return;
     }
 
-    const rows = (m.data ?? []) as any as MatchRow[];
+    const rows = (m.data ?? []) as MatchRow[];
     setMatches(rows);
 
     // default matchday
@@ -260,8 +259,10 @@ export default function SeasonMatchesAdminPage() {
 
   useEffect(() => {
     if (!seasonId) return;
-    loadAll(seasonId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    async function loadData() {
+      await loadAll(seasonId);
+    }
+    loadData();
   }, [seasonId]);
 
   const matchdays = useMemo(() => {
@@ -417,7 +418,7 @@ export default function SeasonMatchesAdminPage() {
     }
 
     const used = new Set<string>();
-    for (const r of (checkRound.data ?? []) as any[]) {
+    for (const r of (checkRound.data ?? [])) {
       if (r.home_team_id) used.add(r.home_team_id);
       if (r.away_team_id) used.add(r.away_team_id);
     }

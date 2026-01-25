@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   const botToken = (process.env.TELEGRAM_BOT_TOKEN || "").trim().replace(/^[<"']+|[>"']+$/g, "");
   const v = verifyTelegramWebAppInitData(initData || "", botToken);
 
-  if (!v.ok) {
+  if (!v.ok || !v.user) {
     return NextResponse.json(
       { ok: false, error: (v as any).error ?? "verify_failed" },
       { status: 401 }
@@ -116,8 +116,8 @@ export async function POST(req: Request) {
   if (up.error || !up.data?.id) {
     console.error("tma_session_upsert_failed", up.error);
     warning = up.error?.message ?? "db_upsert_failed";
-    userId = userIdToWrite;
-    role = roleToWrite;
+    userId = existing.data?.id ?? userIdToWrite;
+    role = existing.data?.role ?? roleToWrite;
   } else {
     userId = up.data.id;
     role = up.data.role ?? roleToWrite;

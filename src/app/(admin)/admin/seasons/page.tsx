@@ -34,12 +34,15 @@ export default function AdminSeasonsPage() {
       return;
     }
 
-    setRows((res.data ?? []) as any);
+    setRows((res.data ?? []) as SeasonRow[]);
     setLoading(false);
   }
 
   useEffect(() => {
-    load();
+    async function loadData() {
+      await load();
+    }
+    loadData();
   }, []);
 
   return (

@@ -21,9 +21,8 @@ type LineupRow = {
 };
 
 export default function MatchLineupsPage() {
-  const params = useParams();
-  const raw = (params as any)?.matchId;
-  const matchId: string | undefined = Array.isArray(raw) ? raw[0] : raw;
+  const params = useParams<{ matchId: string }>();
+  const matchId = params.matchId;
 
   const [match, setMatch] = useState<MatchRow | null>(null);
 
@@ -63,7 +62,7 @@ export default function MatchLineupsPage() {
       return;
     }
 
-    const row = m.data as any as MatchRow;
+    const row = m.data as MatchRow;
     setMatch(row);
 
     const hp = await supabase
@@ -81,8 +80,8 @@ export default function MatchLineupsPage() {
     if (hp.error) setMsg(`Home players xato: ${hp.error.message}`);
     if (ap.error) setMsg(`Away players xato: ${ap.error.message}`);
 
-    setHomePlayers((hp.data ?? []) as any);
-    setAwayPlayers((ap.data ?? []) as any);
+    setHomePlayers(hp.data ?? []);
+    setAwayPlayers(ap.data ?? []);
 
     // existing GK from match_lineups
     const lu = await supabase
@@ -98,7 +97,7 @@ export default function MatchLineupsPage() {
       return;
     }
 
-    const arr = (lu.data ?? []) as any as LineupRow[];
+    const arr = (lu.data ?? []) as LineupRow[];
     const homeRow = arr.find((x) => x.team_id === row.home_team_id);
     const awayRow = arr.find((x) => x.team_id === row.away_team_id);
 
@@ -110,7 +109,12 @@ export default function MatchLineupsPage() {
 
   useEffect(() => {
     if (!matchId) return;
-    loadAll(matchId);
+
+    async function load() {
+      await loadAll(matchId);
+    }
+
+    load();
   }, [matchId]);
 
   async function saveGk(teamId: string, gkId: string | null) {

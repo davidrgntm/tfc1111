@@ -20,15 +20,14 @@ type PhotoRow = {
 
 function safeUUID() {
   // crypto.randomUUID bo‘lmasa fallback
-  // @ts-ignore
+  // @ts-expect-error -- crypto is not defined in all environments
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export default function AdminMatchMediaPage() {
-  const params = useParams();
-  const raw = (params as any)?.matchId;
-  const matchId: string | undefined = Array.isArray(raw) ? raw[0] : raw;
+  const params = useParams<{ matchId: string }>();
+  const matchId = params.matchId;
 
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [highlightUrl, setHighlightUrl] = useState("");
@@ -68,7 +67,7 @@ export default function AdminMatchMediaPage() {
       setLoading(false);
       return;
     }
-    setMatch(m.data as any);
+    setMatch(m.data as MatchRow);
 
     // Highlight link
     const media = await supabase
@@ -94,7 +93,7 @@ export default function AdminMatchMediaPage() {
       setMsg(`Photos xato: ${list.error.message}`);
       setPhotos([]);
     } else {
-      setPhotos((list.data ?? []) as any);
+      setPhotos((list.data ?? []) as PhotoRow[]);
     }
 
     setLoading(false);
