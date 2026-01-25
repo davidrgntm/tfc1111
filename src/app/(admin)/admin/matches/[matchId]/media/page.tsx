@@ -20,7 +20,7 @@ type PhotoRow = {
 
 function safeUUID() {
   // crypto.randomUUID bo‘lmasa fallback
-  // @ts-expect-error -- crypto is not defined in all environments
+
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
