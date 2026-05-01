@@ -30,3 +30,364 @@ img { max-width: 100%; }
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
+
+/* =========================================================
+   League OS Premium UI Patch
+   Global refinement for public pages, admin, TMA and tables
+   ========================================================= */
+
+:root {
+  --bg-main: #020b07;
+  --bg-soft: rgba(255,255,255,.045);
+  --bg-card: rgba(255,255,255,.065);
+  --bg-card-strong: rgba(255,255,255,.095);
+  --border-soft: rgba(255,255,255,.13);
+  --border-strong: rgba(255,255,255,.22);
+  --text-main: #f8fff9;
+  --text-soft: rgba(248,255,249,.72);
+  --text-muted: rgba(248,255,249,.48);
+  --accent: #00e59b;
+  --accent-2: #48bfff;
+  --danger: #ff4d6d;
+  --warning: #ffca3a;
+  --radius-lg: 28px;
+  --radius-md: 20px;
+  --radius-sm: 14px;
+  --shadow-card: 0 24px 80px rgba(0,0,0,.35);
+}
+
+html {
+  background: var(--bg-main);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(0,229,155,.18), transparent 32%),
+    radial-gradient(circle at 82% 12%, rgba(72,191,255,.14), transparent 30%),
+    linear-gradient(135deg, #03150c 0%, #020b07 45%, #020706 100%);
+  color: var(--text-main);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(0,229,155,.35);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+main,
+.page,
+.admin-page,
+.tma-page {
+  width: min(1360px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 72px;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+h1 {
+  font-size: clamp(34px, 5vw, 72px);
+  margin: 0 0 14px;
+}
+
+h2 {
+  font-size: clamp(24px, 3vw, 40px);
+  margin: 0 0 12px;
+}
+
+h3 {
+  font-size: 20px;
+  margin: 0 0 10px;
+}
+
+p {
+  color: var(--text-soft);
+  line-height: 1.65;
+}
+
+button,
+.button,
+[role="button"],
+input[type="submit"] {
+  border: 1px solid var(--border-soft);
+  background: rgba(255,255,255,.06);
+  color: var(--text-main);
+  border-radius: 16px;
+  padding: 12px 18px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: .18s ease;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18);
+}
+
+button:hover,
+.button:hover,
+[role="button"]:hover,
+input[type="submit"]:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0,229,155,.55);
+  background: rgba(0,229,155,.12);
+}
+
+button:active,
+.button:active {
+  transform: translateY(0);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border-soft);
+  background: rgba(0,0,0,.24);
+  color: var(--text-main);
+  border-radius: 16px;
+  padding: 13px 14px;
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(0,229,155,.65);
+  box-shadow: 0 0 0 4px rgba(0,229,155,.12);
+}
+
+label {
+  display: block;
+  color: var(--text-soft);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+
+thead th {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  padding: 0 16px 8px;
+  text-align: left;
+  border: 0 !important;
+}
+
+tbody tr {
+  background: rgba(255,255,255,.055);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+
+tbody td {
+  padding: 16px;
+  border: 0 !important;
+  color: var(--text-main);
+}
+
+tbody tr td:first-child {
+  border-radius: 18px 0 0 18px;
+}
+
+tbody tr td:last-child {
+  border-radius: 0 18px 18px 0;
+}
+
+tbody tr:hover {
+  background: rgba(0,229,155,.09);
+  box-shadow: inset 0 0 0 1px rgba(0,229,155,.22);
+}
+
+section,
+article,
+.card,
+.panel,
+[class*="card"],
+[class*="Card"],
+[class*="panel"],
+[class*="Panel"] {
+  border: 1px solid var(--border-soft);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px);
+}
+
+nav {
+  backdrop-filter: blur(18px);
+}
+
+.badge,
+.status,
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,229,155,.28);
+  background: rgba(0,229,155,.12);
+  color: #b7ffe7;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  margin: 24px 0;
+}
+
+/* Old/simple inner pages auto-upgrade */
+body > div,
+body > main {
+  color: var(--text-main);
+}
+
+body > div:not([hidden]) {
+  max-width: none;
+}
+
+body > div > a:first-child,
+body > main > a:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-soft);
+  margin: 18px 0 16px 18px;
+  font-weight: 800;
+}
+
+body > div > a:first-child:hover,
+body > main > a:first-child:hover {
+  color: var(--accent);
+}
+
+/* Tournament detail plain page upgrade */
+body:has(table) {
+  background:
+    radial-gradient(circle at 15% 8%, rgba(0,229,155,.20), transparent 32%),
+    radial-gradient(circle at 85% 4%, rgba(72,191,255,.14), transparent 28%),
+    #020b07;
+}
+
+body:has(table) > div,
+body:has(table) > main {
+  width: min(1480px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 22px 0 80px;
+}
+
+body:has(table) h1,
+body:has(table) h2 {
+  margin-top: 8px;
+}
+
+body:has(table) table {
+  margin-top: 16px;
+}
+
+body:has(table) > div > div,
+body:has(table) > main > div {
+  border-radius: var(--radius-lg);
+}
+
+/* TMA outside Telegram page */
+body:has(h1:first-child) {
+  min-height: 100vh;
+}
+
+body:has(h1:first-child) h1:first-child {
+  margin-top: 20px;
+}
+
+/* Admin */
+.admin-shell,
+.admin-layout {
+  min-height: 100vh;
+}
+
+.admin-sidebar,
+aside {
+  border-right: 1px solid var(--border-soft);
+  background: rgba(0,0,0,.24);
+  backdrop-filter: blur(18px);
+}
+
+.admin-sidebar a,
+aside a {
+  border-radius: 14px;
+  color: var(--text-soft);
+}
+
+.admin-sidebar a:hover,
+aside a:hover {
+  background: rgba(0,229,155,.10);
+  color: var(--text-main);
+}
+
+/* Mobile polish */
+@media (max-width: 768px) {
+  main,
+  .page,
+  .admin-page,
+  .tma-page {
+    width: min(100% - 22px, 100%);
+    padding: 18px 0 44px;
+  }
+
+  h1 {
+    font-size: 38px;
+  }
+
+  section,
+  article,
+  .card,
+  .panel,
+  [class*="card"],
+  [class*="Card"],
+  [class*="panel"],
+  [class*="Panel"] {
+    border-radius: 22px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 8px;
+  }
+
+  tbody td {
+    padding: 14px 13px;
+  }
+
+  button,
+  .button,
+  [role="button"] {
+    min-height: 46px;
+  }
+}
+
