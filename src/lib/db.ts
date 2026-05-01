@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -445,7 +445,12 @@ function applyFilters(rows: Row[], filters: Filter[]) {
     } else if (filter.type === "in") {
       const values = filter.values.map((v) => String(v));
       out = out.filter((row) => values.includes(String(row[filter.column])));
-    } else if (["gte", "lte", "gt", "lt"].includes(filter.type)) {
+    } else if (
+      filter.type === "gte" ||
+      filter.type === "lte" ||
+      filter.type === "gt" ||
+      filter.type === "lt"
+    ) {
       out = out.filter((row) => {
         const a = row[filter.column];
         const b = filter.value;
@@ -795,3 +800,4 @@ export async function appSummary() {
   const admins = db.prepare("SELECT COUNT(*) AS c FROM app_users WHERE role = 'admin'").get().c ?? 0;
   return { counts, admins: Number(admins), sqlite_path: sqlitePath() };
 }
+
