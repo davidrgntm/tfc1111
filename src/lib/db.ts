@@ -801,3 +801,4 @@ export async function appSummary() {
   return { counts, admins: Number(admins), sqlite_path: sqlitePath() };
 }
 
+
